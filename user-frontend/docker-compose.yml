@@ -1,0 +1,12 @@
+# version: "3.9"
+
+services:
+  smart-garbage-frontend:
+    build: .
+    container_name: smart-garbage-frontend
+    restart: always
+    ports:
+      - "127.0.0.1:3021:3021"
+    environment:
+      NODE_ENV: production
+    command: npm run start
