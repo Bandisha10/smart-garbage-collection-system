@@ -1,0 +1,11 @@
+version: "3.9"
+
+services:
+  api:
+    build: .
+    container_name: server-smart-garbage-collection
+    restart: always
+    ports:
+      - "127.0.0.1:2035:2035"
+    env_file:
+      - .env
