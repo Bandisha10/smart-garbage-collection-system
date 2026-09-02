@@ -11,7 +11,7 @@ app.use(compression());
 
 initializeCronJobs();
 
-const PORT = process.env.PORT || 2035;
+const PORT = process.env.PORT || 2036;
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT} bound to 0.0.0.0`);
