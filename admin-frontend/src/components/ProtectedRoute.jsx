@@ -33,8 +33,7 @@ export default function ProtectedRoute({ children }) {
         if (meData?.user?.role === "COMPANY_ADMIN") {
           if (alive) {
             setStatus("unauthorized");
-            const superAdminUrl = process.env.NEXT_PUBLIC_SUPER_ADMIN_URL || "http://localhost:3001";
-            window.location.href = `${superAdminUrl}/dashboard`;
+            router.replace("/super-admin/dashboard");
           }
           return;
         }

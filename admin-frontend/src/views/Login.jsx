@@ -28,6 +28,22 @@ export default function Login() {
   const [otpToShow, setOtpToShow] = useState("");
 
   useEffect(() => {
+    let alive = true;
+    if (typeof window !== "undefined" && localStorage.getItem("token")) {
+      api.get("/auth/me").then(({ data }) => {
+        if (!alive) return;
+        const role = data?.user?.role;
+        if (role === "COMPANY_ADMIN") {
+          router.replace("/super-admin/dashboard");
+        } else if (role === "ADMIN" || role === "PANCHAYAT_ADMIN") {
+          router.replace("/dashboard");
+        }
+      }).catch(() => {});
+    }
+    return () => { alive = false; };
+  }, [router]);
+
+  useEffect(() => {
     if (timer <= 0) return;
     const interval = setInterval(() => {
       setTimer((t) => (t <= 1 ? 0 : t - 1));
@@ -69,8 +85,7 @@ export default function Login() {
 
       const role = user?.role;
       if (role === "COMPANY_ADMIN") {
-        const superAdminUrl = process.env.NEXT_PUBLIC_SUPER_ADMIN_URL || "http://localhost:3001";
-        window.location.href = `${superAdminUrl}/dashboard`;
+        router.replace("/super-admin/dashboard");
       } else if (role === "ADMIN" || role === "PANCHAYAT_ADMIN") {
         router.replace("/dashboard");
       } else {
