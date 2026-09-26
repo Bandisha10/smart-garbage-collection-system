@@ -1,6 +1,6 @@
 import Route from "../models/Route.model.js";
+import { notifyRouteAssigned } from "../services/notification.service.js";
 
-// CREATE
 // CREATE
 export const createRoute = async (req, res) => {
   try {
@@ -26,6 +26,15 @@ export const createRoute = async (req, res) => {
       assignedDriver: assignedDriver || null,
       assignedVehicle,
     });
+
+    if (route.assignedDriver) {
+      notifyRouteAssigned({
+        driverId: route.assignedDriver,
+        routeName: route.routeName,
+        routeCode: route.routeCode,
+        routeId: route._id,
+      }).catch((err) => console.error("Route Assigned Push Error:", err.message));
+    }
 
     res.status(201).json(route);
   } catch (err) {
@@ -59,12 +68,27 @@ export const getRouteById = async (req, res) => {
 // UPDATE
 export const updateRoute = async (req, res) => {
   try {
+    const prevRoute = await Route.findOne({ _id: req.params.id, panchayat: req.user.panchayatId });
     const route = await Route.findOneAndUpdate(
       { _id: req.params.id, panchayat: req.user.panchayatId },
       req.body,
       { new: true }
     );
     if (!route) return res.status(404).json({ message: "Route not found" });
+
+    // If driver is assigned or changed
+    if (
+      route.assignedDriver &&
+      (!prevRoute?.assignedDriver || prevRoute.assignedDriver.toString() !== route.assignedDriver.toString())
+    ) {
+      notifyRouteAssigned({
+        driverId: route.assignedDriver,
+        routeName: route.routeName,
+        routeCode: route.routeCode,
+        routeId: route._id,
+      }).catch((err) => console.error("Route Assigned Push Error:", err.message));
+    }
+
     res.json(route);
   } catch (err) {
     res.status(500).json({ message: "Failed to update route" });

@@ -99,7 +99,11 @@ npm run android
 
 ## ✨ Key Features
 
-- 🎤 **Voice-Assisted Collection**: Hands-free voice recognition using speech-to-text to record garbage collection details on the go.
+- 🎧 **"Hey Eco" Hands-Free Collection**: 
+  - **Wake Word Recognition**: Workers say *"Hey Eco, Bin 102 collected 3 kg"*.
+  - **3-Second Auto-Submit**: Automatically validates GPS & submits without touching the screen.
+  - **Text-to-Speech (TTS) Readback**: Audio spoken into Bluetooth earphones with cancellation support.
+  - **Pocket AMOLED Mode**: Blackout low-power screen mode to keep the phone in pockets without accidental touches or battery drain.
 - 📷 **QR Code Scanner**: High-speed camera scanner to verify dustbins.
 - 🗺️ **GPS Location & Map Navigation**: Real-time coordinates and interactive map tracking.
 - 🕒 **Attendance Management**: Check in / check out with location verification.

@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Complaint from "../models/Complaint.model.js";
+import { notifyIssueUpdated } from "../services/notification.service.js";
 
 // @desc    Submit a complaint (Public)
 // @route   POST /api/complaints
@@ -119,6 +120,15 @@ export const updateComplaintStatus = async (req, res) => {
     }
 
     await complaint.save();
+
+    if (complaint.assignedTo) {
+      notifyIssueUpdated({
+        recipientId: complaint.assignedTo,
+        complaintId: complaint.complaintId || complaint._id,
+        status: complaint.status,
+      }).catch((e) => console.error("Complaint Push Error:", e.message));
+    }
+
     res.json(complaint);
   } catch (error) {
     res.status(500).json({ message: error.message });

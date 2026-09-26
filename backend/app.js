@@ -22,6 +22,7 @@ import userRoutes from "./routes/user.routes.js";
 import employeeAppRoutes from "./routes/employee.app.routes.js";
 import contactQueryRoutes from "./routes/contactQuery.routes.js";
 import scheduleBookingRoutes from "./routes/scheduleBooking.routes.js";
+import notificationRoutes from "./routes/notification.routes.js";
 
 
 const app = express();
@@ -63,6 +64,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/employee", employeeAppRoutes);
 app.use("/api/contact-queries", contactQueryRoutes);
 app.use("/api/schedule-bookings", scheduleBookingRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 
 

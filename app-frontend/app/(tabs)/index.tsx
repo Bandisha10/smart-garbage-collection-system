@@ -1,4 +1,4 @@
-import { MapPin, User, CheckCircle, Clock, Zap, TrendingUp, Mic } from 'lucide-react-native';
+import { MapPin, User, CheckCircle, Clock, Zap, TrendingUp, Mic, Bell } from 'lucide-react-native';
 import React, { useState, useCallback } from 'react';
 import {
   ScrollView, Switch, Text, TextInput, TouchableOpacity, View,
@@ -31,10 +31,23 @@ export default function HomeScreen() {
   const [alertConfig, setAlertConfig] = useState({ title: '', message: '', type: 'success' as 'success' | 'error' });
   const [stats, setStats] = useState({ location: 'Loading...', ward: '', wards: [] as string[], total: 0, completed: 0, pending: 0, onDuty: true });
   const [voiceModalVisible, setVoiceModalVisible] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // Leave reason dialog
   const [leaveDialogVisible, setLeaveDialogVisible] = useState(false);
   const [leaveReason, setLeaveReason] = useState('');
+
+  const fetchUnreadCount = async () => {
+    try {
+      const res = await request('/notifications/unread-count');
+      const data = await res.json();
+      if (res.ok && typeof data.unreadCount === 'number') {
+        setUnreadCount(data.unreadCount);
+      }
+    } catch {
+      // Fail silently
+    }
+  };
 
   const handleToggleDuty = async (val: boolean) => {
     if (!val) {
@@ -102,7 +115,13 @@ export default function HomeScreen() {
     } catch { } finally { setLoading(false); }
   };
 
-  useFocusEffect(useCallback(() => { fetchStats(); fetchLocation(); }, []));
+  useFocusEffect(
+    useCallback(() => {
+      fetchStats();
+      fetchLocation();
+      fetchUnreadCount();
+    }, [])
+  );
 
   const pct = stats.total > 0 ? (stats.completed / stats.total) * 100 : 0;
   const RADIUS = 42;
@@ -127,12 +146,52 @@ export default function HomeScreen() {
           backgroundColor: PRIMARY, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36,
           borderBottomLeftRadius: 28, borderBottomRightRadius: 28,
         }}>
-          {/* Location */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
-            <MapPin size={16} color="rgba(255,255,255,0.8)" />
-            <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, marginLeft: 6, flex: 1 }} numberOfLines={1}>
-              {displayLocation}
-            </Text>
+          {/* Location & Notification Bell */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 12 }}>
+              <MapPin size={16} color="rgba(255,255,255,0.8)" />
+              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, marginLeft: 6, flex: 1 }} numberOfLines={1}>
+                {displayLocation}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => router.push('/notifications' as any)}
+              activeOpacity={0.8}
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 12,
+                backgroundColor: 'rgba(255,255,255,0.2)',
+                justifyContent: 'center',
+                alignItems: 'center',
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.35)',
+              }}
+            >
+              <Bell size={18} color="white" />
+              {unreadCount > 0 && (
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: -4,
+                    right: -4,
+                    backgroundColor: '#ef4444',
+                    minWidth: 18,
+                    height: 18,
+                    borderRadius: 9,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    paddingHorizontal: 4,
+                    borderWidth: 1.5,
+                    borderColor: PRIMARY,
+                  }}
+                >
+                  <Text style={{ color: 'white', fontSize: 10, fontWeight: '800' }}>
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
 
           {/* Avatar + Name */}
@@ -225,17 +284,51 @@ export default function HomeScreen() {
             activeOpacity={0.9}
             style={{
               backgroundColor: isAvailable ? (theme.dark ? '#1e1b4b' : '#ede9fe') : (theme.dark ? '#1e293b' : '#f1f5f9'),
-              borderRadius: 16, height: 54,
-              flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+              borderRadius: 16,
+              padding: 16,
               marginTop: 12,
               borderWidth: 1.5,
               borderColor: isAvailable ? PRIMARY : '#cbd5e1',
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
             }}
           >
-            <Mic size={20} color={isAvailable ? PRIMARY : '#94a3b8'} style={{ marginRight: 8 }} />
-            <Text style={{ color: isAvailable ? PRIMARY : '#94a3b8', fontSize: 16, fontWeight: '800', letterSpacing: 0.5 }}>
-              🎤 Record Collection
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: isAvailable ? PRIMARY : '#94a3b8',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  marginRight: 12,
+                }}
+              >
+                <Mic size={22} color="white" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ color: theme.text, fontSize: 16, fontWeight: '800' }}>
+                    Hands-Free Voice Mode
+                  </Text>
+                  <View
+                    style={{
+                      backgroundColor: '#22c55e',
+                      paddingHorizontal: 6,
+                      paddingVertical: 2,
+                      borderRadius: 6,
+                    }}
+                  >
+                    <Text style={{ color: 'white', fontSize: 10, fontWeight: '800' }}>"Hey Eco"</Text>
+                  </View>
+                </View>
+                <Text style={{ color: theme.muted, fontSize: 12, marginTop: 2 }}>
+                  Say "Hey Eco" · 3s Auto-Submit · Earphone Ready
+                </Text>
+              </View>
+            </View>
           </TouchableOpacity>
         </View>
 

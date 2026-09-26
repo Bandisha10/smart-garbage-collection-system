@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import {
     Briefcase, HelpCircle, MessageSquare, Phone, Users,
-    ChevronRight, Search, AlertTriangle, LogOut, Moon, Sun,
+    ChevronRight, Search, AlertTriangle, LogOut, Moon, Sun, Bell,
 } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { ScrollView, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -15,11 +15,12 @@ import { useTheme } from '../../context/ThemeContext';
 const RED = '#dc2626';
 
 const MENU = [
-    { id: 1, title: 'Attendance Report', icon: Briefcase, route: '/attendance', desc: 'View monthly attendance', color: '#4f46e5', bg: '#eef2ff' },
-    { id: 2, title: 'Raise Query / Issue', icon: HelpCircle, route: '/raise-query', desc: 'Report a problem to supervisor', color: '#0ea5e9', bg: '#f0f9ff' },
-    { id: 3, title: 'Feedback', icon: MessageSquare, route: '/feedback', desc: 'Share your work experience', color: '#8b5cf6', bg: '#f5f3ff' },
-    { id: 4, title: 'Technical Support', icon: Phone, route: '/technical-support', desc: 'Contact our support team', color: '#10b981', bg: '#f0fdf4' },
-    { id: 5, title: 'Contact Committee', icon: Users, route: '/contact-committee', desc: 'Call supervisors & coordinators', color: '#f59e0b', bg: '#fffbeb' },
+    { id: 1, title: 'Notifications', icon: Bell, route: '/notifications', desc: 'View route alerts & updates', color: '#6B5BFF', bg: '#eef2ff' },
+    { id: 2, title: 'Attendance Report', icon: Briefcase, route: '/attendance', desc: 'View monthly attendance', color: '#4f46e5', bg: '#eef2ff' },
+    { id: 3, title: 'Raise Query / Issue', icon: HelpCircle, route: '/raise-query', desc: 'Report a problem to supervisor', color: '#0ea5e9', bg: '#f0f9ff' },
+    { id: 4, title: 'Feedback', icon: MessageSquare, route: '/feedback', desc: 'Share your work experience', color: '#8b5cf6', bg: '#f5f3ff' },
+    { id: 5, title: 'Technical Support', icon: Phone, route: '/technical-support', desc: 'Contact our support team', color: '#10b981', bg: '#f0fdf4' },
+    { id: 6, title: 'Contact Committee', icon: Users, route: '/contact-committee', desc: 'Call supervisors & coordinators', color: '#f59e0b', bg: '#fffbeb' },
 ];
 
 export default function MoreScreen() {

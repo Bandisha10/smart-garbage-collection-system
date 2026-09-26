@@ -5,6 +5,8 @@ export interface ParsedVoiceCollection {
   rawTranscript: string;
   isValid: boolean;
   errorMessage?: string;
+  wakeWordDetected?: boolean;
+  isCancellation?: boolean;
 }
 
 const DIGIT_WORDS: Record<string, string> = {
@@ -51,6 +53,36 @@ const NUMBER_WORDS: Record<string, number> = {
   ninety: 90,
   hundred: 100,
 };
+
+// Regex pattern to match "Hey Eco", "Hi Eco", "OK Eco", "Eco", "Echo", "Aiko", "Ekko", etc.
+export const WAKE_WORD_REGEX = /\b(?:hey|hi|hello|ok|okay)?\s*(?:eco|echo|ekko|aiko|ico|agro|eggo)\b/i;
+
+// Regex pattern to match cancellation / abort commands
+export const CANCEL_REGEX = /\b(?:cancel|abort|stop|no|don't|dont|undo|wrong|wait|hold on|never mind|nevermind)\b/i;
+
+/**
+ * Checks if the given spoken text contains the "Hey Eco" wake word
+ */
+export function detectWakeWord(text: string): boolean {
+  if (!text) return false;
+  return WAKE_WORD_REGEX.test(text);
+}
+
+/**
+ * Removes the wake word prefix from the spoken text so payload can be parsed cleanly
+ */
+export function stripWakeWord(text: string): string {
+  if (!text) return '';
+  return text.replace(WAKE_WORD_REGEX, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Checks if the spoken text is a cancellation or abort command
+ */
+export function detectCancelCommand(text: string): boolean {
+  if (!text) return false;
+  return CANCEL_REGEX.test(text);
+}
 
 /**
  * Converts digit sequences like "seven nine zero seven" -> "7907"
@@ -128,15 +160,22 @@ function formatBinId(id: string): string {
 
 /**
  * Parses natural language speech transcript into structured collection data.
- * Examples:
- * - "Bin 7907 collected 3 kg" -> { dustbinId: "B-7907", weight: 3, action: "collected" }
- * - "Bin B-7907 collected with 3 kg weight" -> { dustbinId: "B-7907", weight: 3, action: "collected" }
- * - "Dustbin is 7907 4.5 kg" -> { dustbinId: "B-7907", weight: 4.5, action: "collected" }
+ * Supports:
+ * - "Hey Eco bin 7907 collected 3 kg"
+ * - "Bin 7907 collected 3 kg"
+ * - "Bin B-7907 collected with 3 kg weight"
+ * - "Dustbin is 7907 4.5 kg"
+ * - "Cancel", "Stop", "Abort"
  */
-export function parseVoiceCollection(transcript: string): ParsedVoiceCollection {
+export function parseVoiceCollection(
+  transcript: string,
+  options?: { requireWakeWord?: boolean }
+): ParsedVoiceCollection {
   const result: ParsedVoiceCollection = {
     rawTranscript: transcript || '',
     isValid: false,
+    wakeWordDetected: false,
+    isCancellation: false,
   };
 
   if (!transcript || !transcript.trim()) {
@@ -144,22 +183,49 @@ export function parseVoiceCollection(transcript: string): ParsedVoiceCollection 
     return result;
   }
 
-  let cleanText = transcript
+  // 1. Check for cancellation command
+  if (detectCancelCommand(transcript)) {
+    result.isCancellation = true;
+    result.isValid = false;
+    result.errorMessage = 'Action cancelled.';
+    return result;
+  }
+
+  // 2. Check for Wake Word
+  const hasWakeWord = detectWakeWord(transcript);
+  result.wakeWordDetected = hasWakeWord;
+
+  if (options?.requireWakeWord && !hasWakeWord) {
+    result.errorMessage = 'Wake word "Hey Eco" not detected.';
+    return result;
+  }
+
+  // 3. Strip Wake Word if present
+  let cleanText = hasWakeWord ? stripWakeWord(transcript) : transcript;
+
+  cleanText = cleanText
     .replace(/[,?!;:]/g, ' ')
     .replace(/\.(?!\d)/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-  // 1. Convert spoken digit words: "seven nine zero seven" -> "7907"
+  // If user ONLY said "Hey Eco", we acknowledge wake word without error
+  if (!cleanText || cleanText.length === 0) {
+    result.wakeWordDetected = true;
+    result.errorMessage = 'Listening for details...';
+    return result;
+  }
+
+  // 4. Convert spoken digit words: "seven nine zero seven" -> "7907"
   cleanText = normalizeDigitWords(cleanText);
 
-  // 2. Normalize common phonetic speech-to-text confusions for "bin" / "dustbin"
+  // 5. Normalize common phonetic speech-to-text confusions for "bin" / "dustbin"
   cleanText = cleanText
     .replace(/\b(?:been|bean|ben|pin|pen|dabba|trash|garbage|container|box|bucket)\b/gi, 'bin')
     .replace(/\b(?:bee|be)\s+(\d+)\b/gi, 'b-$1')
     .replace(/\bb\s+(\d+)\b/gi, 'b-$1');
 
-  // 3. EXTRACT DUSTBIN / BIN ID
+  // 6. EXTRACT DUSTBIN / BIN ID
   let extractedBinId: string | null = null;
 
   const binPatterns = [
@@ -176,7 +242,7 @@ export function parseVoiceCollection(transcript: string): ParsedVoiceCollection 
   const blacklist = [
     'with', 'collected', 'picked', 'is', 'has', 'was', 'and', 'weight',
     'problem', 'issue', 'waste', 'kilos', 'kilo', 'kg', 'kgs', 'done',
-    'scanned', 'cleared', 'the', 'this', 'that', 'number', 'no'
+    'scanned', 'cleared', 'the', 'this', 'that', 'number', 'no', 'eco', 'echo'
   ];
 
   for (const pattern of binPatterns) {
@@ -191,12 +257,12 @@ export function parseVoiceCollection(transcript: string): ParsedVoiceCollection 
   }
 
   if (!extractedBinId) {
-    result.errorMessage = 'Could not identify the bin number. Please try again.';
+    result.errorMessage = 'Could not identify the bin number. Please say "Hey Eco, Bin [Number]".';
     return result;
   }
   result.dustbinId = extractedBinId;
 
-  // 4. EXTRACT ACTION
+  // 7. EXTRACT ACTION
   const lowerText = cleanText.toLowerCase();
   const issueKeywords = ['issue', 'problem', 'damaged', 'defect', 'broken', 'missing', 'overflow', 'overflowing', 'full', 'dirty', 'hazardous'];
   const collectKeywords = ['collected', 'collect', 'picked', 'done', 'completed', 'cleared', 'scanned', 'picked up', 'empty', 'emptied', 'waste', 'clear'];
@@ -218,7 +284,7 @@ export function parseVoiceCollection(transcript: string): ParsedVoiceCollection 
     }
   }
 
-  // 5. EXTRACT WEIGHT (Required for "collected", optional for "issue")
+  // 8. EXTRACT WEIGHT (Required for "collected", optional for "issue")
   if (result.action === 'collected') {
     let extractedWeight: number | null = null;
 
@@ -245,7 +311,7 @@ export function parseVoiceCollection(transcript: string): ParsedVoiceCollection 
     }
 
     if (extractedWeight === null || extractedWeight <= 0) {
-      result.errorMessage = 'Could not identify the weight. Please try again.';
+      result.errorMessage = 'Could not identify the weight. Please say the weight in kg.';
       return result;
     }
 

@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "compression": "^1.8.1",
+    "expo-server-sdk": "^7.2.0",
     "firebase": "^12.7.0",
     "multer": "^2.0.2",
     "node-cron": "^4.2.1"

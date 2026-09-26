@@ -6,6 +6,7 @@ import Attendance from "../models/attendance.model.js";
 import Panchayat from "../models/Panchayat.model.js";
 import WasteData from "../models/WasteData.model.js";
 import mongoose from "mongoose";
+import { notifyAttendance, notifySystem } from "../services/notification.service.js";
 
 
 const RADIUS_METERS = 20;
@@ -117,6 +118,7 @@ export const scanAttendance = async (req, res) => {
     }
 
     // 4. LOCK ATTENDANCE immediately on scan
+    const wasAlreadyPresent = attendance && attendance.present;
     await Attendance.findOneAndUpdate(
       { labour: labourId, date, panchayat: panchayatId },
       {
@@ -128,6 +130,14 @@ export const scanAttendance = async (req, res) => {
       },
       { upsert: true, new: true }
     );
+
+    if (!wasAlreadyPresent) {
+      notifyAttendance({
+        labourId,
+        statusText: "Present",
+        source: isOffline ? "Offline QR Scan" : "QR Scan",
+      }).catch((e) => console.error("Attendance Push Error:", e.message));
+    }
 
     // 1. Record Scan
     const scanRecord = await AttendanceScan.create({
@@ -191,6 +201,12 @@ export const manualAttendance = async (req, res) => {
       },
       { upsert: true, new: true }
     );
+
+    notifyAttendance({
+      labourId,
+      statusText: "Present",
+      source: "Admin Manual Record",
+    }).catch((e) => console.error("Manual Attendance Push Error:", e.message));
 
     res.status(200).json(attendance);
   } catch (err) {
@@ -275,6 +291,15 @@ export const updateScanAction = async (req, res) => {
 
     if (!scan) {
       return res.status(404).json({ message: "Scan record not found" });
+    }
+
+    if (action === "issue") {
+      notifySystem({
+        recipientId: scan.labour,
+        title: "Issue Reported",
+        message: `Issue reported: "${issueDescription || "Bin Issue"}". Supervisor has been notified.`,
+        data: { screen: "/raise-query" },
+      }).catch((e) => console.error("Issue Push Error:", e.message));
     }
 
     // 🔹 ATTENDANCE LOGIC: If action is 'collected', mark employee as present if not already
