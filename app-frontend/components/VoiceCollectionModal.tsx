@@ -94,6 +94,11 @@ export default function VoiceCollectionModal({
   // 3-second auto-submission countdown
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
   const countdownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 4-second auto-dismiss recovery timer on errors
+  const [errorCountdown, setErrorCountdown] = useState(4);
+  const errorTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Animated pulse for microphone ring
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -114,6 +119,27 @@ export default function VoiceCollectionModal({
     }
   }, [ttsEnabled]);
 
+  const clearSilenceTimer = () => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  };
+
+  const clearCountdown = () => {
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+  };
+
+  const clearErrorCountdown = () => {
+    if (errorTimerRef.current) {
+      clearInterval(errorTimerRef.current);
+      errorTimerRef.current = null;
+    }
+  };
+
   // Keep-Awake management
   useEffect(() => {
     if (visible) {
@@ -122,11 +148,15 @@ export default function VoiceCollectionModal({
       deactivateKeepAwake('voice-collection').catch(() => {});
       Speech.stop();
       clearCountdown();
+      clearSilenceTimer();
+      clearErrorCountdown();
     }
     return () => {
       deactivateKeepAwake('voice-collection').catch(() => {});
       Speech.stop();
       clearCountdown();
+      clearSilenceTimer();
+      clearErrorCountdown();
     };
   }, [visible]);
 
@@ -155,12 +185,34 @@ export default function VoiceCollectionModal({
     return () => pulseLoop.current?.stop();
   }, [isRecognizing]);
 
-  const clearCountdown = () => {
-    if (countdownTimerRef.current) {
-      clearInterval(countdownTimerRef.current);
-      countdownTimerRef.current = null;
-    }
-  };
+  // ── Auto-Recovery on Voice / Bin Error (4-Second Auto Dismiss) ────────
+  const triggerErrorWithAutoRecovery = useCallback(
+    (msg: string) => {
+      clearSilenceTimer();
+      clearCountdown();
+      clearErrorCountdown();
+      stopSpeechRecognition();
+
+      setErrorMessage(msg);
+      setModalState('error');
+      setErrorCountdown(4);
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      speakFeedback(`${msg}. Resuming in 4 seconds.`);
+
+      let remaining = 4;
+      errorTimerRef.current = setInterval(() => {
+        remaining -= 1;
+        setErrorCountdown(remaining);
+        if (remaining <= 0) {
+          clearErrorCountdown();
+          resetAndStartListening(false);
+          speakFeedback('Listening for next bin.');
+        }
+      }, 1000);
+    },
+    [speakFeedback]
+  );
 
   // ── Speech Recognition Event Listeners ───────────────────────
   useSpeechRecognitionEvent('start', () => {
@@ -169,8 +221,15 @@ export default function VoiceCollectionModal({
 
   useSpeechRecognitionEvent('end', () => {
     setIsRecognizing(false);
-    // In hands-free or listening mode, automatically restart if modal is still open and not submitting
+    // If modal is listening and we have captured transcript, parse and trigger auto-confirmation
     if (visible && modalState === 'listening') {
+      if (transcript.trim()) {
+        const parsed = parseVoiceCollection(transcript);
+        if (parsed.isValid && parsed.dustbinId) {
+          triggerAutoConfirmation(parsed);
+          return;
+        }
+      }
       restartListeningSafe();
     }
   });
@@ -187,12 +246,40 @@ export default function VoiceCollectionModal({
     setIsRecognizing(false);
     console.log('Speech Recognition Error:', event.error, event.message);
     if (modalState === 'listening' && visible) {
-      // In hands-free mode, keep retry listening rather than blocking
       setTimeout(() => {
         if (visible && modalState === 'listening') restartListeningSafe();
       }, 1000);
     }
   });
+
+  // Automatically trigger confirmation & auto-submit countdown
+  const triggerAutoConfirmation = useCallback((parsed: any) => {
+    clearSilenceTimer();
+    clearCountdown();
+    clearErrorCountdown();
+    stopSpeechRecognition();
+
+    const binId = parsed.dustbinId || '';
+    const parsedWeight = parsed.weight ? String(parsed.weight) : '';
+    const parsedAction = parsed.action || 'collected';
+
+    setDustbinId(binId);
+    setWeight(parsedWeight);
+    setAction(parsedAction);
+    setModalState('confirming');
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    const weightSpeech = parsedWeight ? `${parsedWeight} kilograms` : '';
+    const actionSpeech = parsedAction === 'issue' ? 'Issue reported' : 'Collected';
+    speakFeedback(`Bin ${binId}, ${actionSpeech} ${weightSpeech}. Submitting in 3 seconds. Say cancel to abort.`);
+
+    startAutoSubmitCountdown({
+      dustbinId: binId,
+      weight: parsedWeight,
+      action: parsedAction,
+    });
+  }, [speakFeedback]);
 
   // Handle incoming live speech stream
   const handleLiveSpeechResult = (spokenText: string, isFinal: boolean) => {
@@ -202,17 +289,19 @@ export default function VoiceCollectionModal({
     if (modalState === 'confirming') {
       if (detectCancelCommand(lower)) {
         clearCountdown();
+        clearSilenceTimer();
+        clearErrorCountdown();
         setModalState('listening');
         setTranscript('');
         setWakeWordHeard(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        speakFeedback('Cancelled. Say Hey Eco to record next bin.');
+        speakFeedback('Cancelled. Listening for next bin.');
         restartListeningSafe();
         return;
       }
     }
 
-    // 2. Check for "Hey Eco" Wake Word
+    // 2. Process in listening mode
     if (modalState === 'listening') {
       const hasWake = detectWakeWord(lower);
       if (hasWake && !wakeWordHeard) {
@@ -220,35 +309,53 @@ export default function VoiceCollectionModal({
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
 
-      // If spoken command contains both wake word & payload OR is final
-      if (isFinal || hasWake) {
-        const parsed = parseVoiceCollection(spokenText);
-
-        // If user ONLY said "Hey Eco"
-        if (parsed.wakeWordDetected && !parsed.isValid && !parsed.dustbinId) {
-          speakFeedback('Listening. Please say bin number and weight.');
-          return;
-        }
-
-        // If user provided a valid collection payload
-        if (parsed.isValid && parsed.dustbinId) {
-          setDustbinId(parsed.dustbinId);
-          setWeight(parsed.weight ? String(parsed.weight) : '');
-          setAction(parsed.action || 'collected');
-          setModalState('confirming');
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-          // Audio Readback + 3s Auto-Submit
-          const weightSpeech = parsed.weight ? `${parsed.weight} kilograms` : '';
-          const actionSpeech = parsed.action === 'issue' ? 'Issue reported' : 'Collected';
-          speakFeedback(`Bin ${parsed.dustbinId}, ${actionSpeech} ${weightSpeech}. Submitting in 3 seconds. Say cancel to abort.`);
-          startAutoSubmitCountdown();
-        }
+      // Check for spoken cancellation in listening mode
+      if (detectCancelCommand(lower)) {
+        clearSilenceTimer();
+        setTranscript('');
+        speakFeedback('Cancelled.');
+        return;
       }
+
+      const parsed = parseVoiceCollection(spokenText);
+
+      // If user ONLY said "Hey Eco" without payload
+      if (parsed.wakeWordDetected && !parsed.isValid && !parsed.dustbinId) {
+        clearSilenceTimer();
+        speakFeedback('Listening. Please say bin number and weight.');
+        return;
+      }
+
+      // If user spoke a complete valid collection command (e.g. "been 7907 collected with 5 kg waste")
+      if (parsed.isValid && parsed.dustbinId) {
+        clearSilenceTimer();
+        if (isFinal) {
+          triggerAutoConfirmation(parsed);
+        } else {
+          // Debounce 900ms of silence after speaking full command before auto-submitting
+          silenceTimerRef.current = setTimeout(() => {
+            triggerAutoConfirmation(parsed);
+          }, 900);
+        }
+        return;
+      }
+
+      // If speech is ongoing but not yet fully parsed, wait for 1.4s pause to evaluate
+      clearSilenceTimer();
+      silenceTimerRef.current = setTimeout(() => {
+        const endParsed = parseVoiceCollection(spokenText);
+        if (endParsed.isValid && endParsed.dustbinId) {
+          triggerAutoConfirmation(endParsed);
+        }
+      }, 1400);
     }
   };
 
-  const startAutoSubmitCountdown = () => {
+  const startAutoSubmitCountdown = (dataToSubmit?: {
+    dustbinId?: string;
+    weight?: string;
+    action?: 'collected' | 'issue';
+  }) => {
     clearCountdown();
     setCountdown(COUNTDOWN_SECONDS);
 
@@ -259,20 +366,49 @@ export default function VoiceCollectionModal({
 
       if (current <= 0) {
         clearCountdown();
-        executeSubmission();
+        executeSubmission(dataToSubmit);
       }
     }, 1000);
   };
 
-  // Start speech recognition when modal opens
+  // Start speech recognition when modal opens (in standby without speaking prompt)
   useEffect(() => {
     if (visible) {
-      resetAndStartListening();
+      setIsPocketMode(false);
+      clearCountdown();
+      clearSilenceTimer();
+      clearErrorCountdown();
+      setModalState('listening');
+      setTranscript('');
+      setErrorMessage('');
+      setDustbinId('');
+      setWeight('');
+      setAction('collected');
+      setWakeWordHeard(false);
+      startSpeechRecognitionQuietly();
     } else {
       stopSpeechRecognition();
       clearCountdown();
+      clearSilenceTimer();
+      clearErrorCountdown();
+      Speech.stop();
     }
   }, [visible]);
+
+  const startSpeechRecognitionQuietly = async () => {
+    try {
+      const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!permission.granted) return;
+      await ExpoSpeechRecognitionModule.start({
+        lang: 'en-IN',
+        interimResults: true,
+        continuous: true,
+      });
+      setIsRecognizing(true);
+    } catch {
+      // Quiet start
+    }
+  };
 
   const stopSpeechRecognition = async () => {
     try {
@@ -296,8 +432,10 @@ export default function VoiceCollectionModal({
     }
   };
 
-  const resetAndStartListening = async () => {
+  const resetAndStartListening = async (speakGreeting = false) => {
     clearCountdown();
+    clearSilenceTimer();
+    clearErrorCountdown();
     setModalState('listening');
     setTranscript('');
     setErrorMessage('');
@@ -309,9 +447,7 @@ export default function VoiceCollectionModal({
     try {
       const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       if (!permission.granted) {
-        setErrorMessage('Microphone permission is required. Please allow microphone access.');
-        speakFeedback('Microphone permission is required.');
-        setModalState('error');
+        triggerErrorWithAutoRecovery('Microphone permission is required.');
         return;
       }
 
@@ -322,45 +458,47 @@ export default function VoiceCollectionModal({
       });
       setIsRecognizing(true);
 
-      if (isHandsFree) {
+      if (speakGreeting) {
         speakFeedback('Hands-free mode active. Say Hey Eco to record.');
       }
     } catch (err: any) {
       console.log('Start Recognition Error:', err);
-      setErrorMessage('Speech recognition service is unavailable on this device.');
-      setModalState('error');
+      triggerErrorWithAutoRecovery('Speech recognition service is unavailable.');
     }
+  };
+
+  // User explicitly enters pocket mode
+  const enterPocketMode = () => {
+    setIsPocketMode(true);
+    clearErrorCountdown();
+    clearSilenceTimer();
+    clearCountdown();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    speakFeedback('Hands-free mode active. Say Hey Eco to record.');
+    resetAndStartListening(false);
   };
 
   // Manual trigger if user taps Done Speaking
   const handleManualStopAndParse = async () => {
+    clearSilenceTimer();
     await stopSpeechRecognition();
     if (transcript.trim()) {
       const parsed = parseVoiceCollection(transcript);
       if (parsed.isValid && parsed.dustbinId) {
-        setDustbinId(parsed.dustbinId);
-        setWeight(parsed.weight ? String(parsed.weight) : '');
-        setAction(parsed.action || 'collected');
-        setModalState('confirming');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        const weightSpeech = parsed.weight ? `${parsed.weight} kilograms` : '';
-        speakFeedback(`Bin ${parsed.dustbinId}, ${weightSpeech}. Submitting in 3 seconds.`);
-        startAutoSubmitCountdown();
+        triggerAutoConfirmation(parsed);
       } else {
-        setErrorMessage(parsed.errorMessage || 'Could not understand details. Please repeat.');
-        speakFeedback('Could not understand details. Please repeat.');
-        setModalState('error');
+        triggerErrorWithAutoRecovery(parsed.errorMessage || 'Could not understand details. Please repeat.');
       }
     } else {
-      setErrorMessage('No speech detected. Please try speaking again.');
-      speakFeedback('No speech detected.');
-      setModalState('error');
+      triggerErrorWithAutoRecovery('No speech detected. Please try speaking again.');
     }
   };
 
   // Cancel during confirmation
   const handleCancelCountdown = () => {
     clearCountdown();
+    clearSilenceTimer();
+    clearErrorCountdown();
     setModalState('listening');
     setTranscript('');
     setWakeWordHeard(false);
@@ -370,18 +508,25 @@ export default function VoiceCollectionModal({
   };
 
   // Submit collection to backend
-  const executeSubmission = async () => {
+  const executeSubmission = async (overrideData?: {
+    dustbinId?: string;
+    weight?: string;
+    action?: 'collected' | 'issue';
+  }) => {
     clearCountdown();
-    if (!dustbinId.trim()) {
-      setErrorMessage('Please provide a valid dustbin ID.');
-      speakFeedback('Invalid dustbin number.');
-      setModalState('error');
+    clearSilenceTimer();
+    clearErrorCountdown();
+
+    const targetBinId = (overrideData?.dustbinId ?? dustbinId).trim();
+    const targetAction = overrideData?.action ?? action;
+    const targetWeight = (overrideData?.weight !== undefined ? String(overrideData.weight) : weight).trim();
+
+    if (!targetBinId) {
+      triggerErrorWithAutoRecovery('Invalid dustbin number.');
       return;
     }
-    if (action === 'collected' && (!weight.trim() || isNaN(Number(weight)) || Number(weight) <= 0)) {
-      setErrorMessage('Please provide a valid waste weight in kg.');
-      speakFeedback('Please provide valid weight.');
-      setModalState('error');
+    if (targetAction === 'collected' && (!targetWeight || isNaN(Number(targetWeight)) || Number(targetWeight) <= 0)) {
+      triggerErrorWithAutoRecovery('Please provide valid waste weight.');
       return;
     }
 
@@ -391,9 +536,7 @@ export default function VoiceCollectionModal({
       // 1. Get GPS Location
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        setErrorMessage('Location access is required to record bin collection.');
-        speakFeedback('Location permission missing.');
-        setModalState('error');
+        triggerErrorWithAutoRecovery('Location access is required.');
         return;
       }
       const location = await Location.getCurrentPositionAsync({});
@@ -401,9 +544,7 @@ export default function VoiceCollectionModal({
       // 2. Get Labour Auth Info
       const userStr = await AsyncStorage.getItem('user');
       if (!userStr) {
-        setErrorMessage('Authentication session missing. Please log in again.');
-        speakFeedback('Session expired. Please log in again.');
-        setModalState('error');
+        triggerErrorWithAutoRecovery('Session expired. Please log in again.');
         return;
       }
       const user = JSON.parse(userStr);
@@ -413,7 +554,7 @@ export default function VoiceCollectionModal({
         method: 'POST',
         body: JSON.stringify({
           labourId: user.id,
-          dustbinId: dustbinId.trim(),
+          dustbinId: targetBinId,
           lat: location.coords.latitude,
           lng: location.coords.longitude,
         }),
@@ -421,9 +562,7 @@ export default function VoiceCollectionModal({
 
       const scanData = await scanRes.json();
       if (!scanRes.ok) {
-        setErrorMessage(scanData.message || 'Dustbin scan validation failed.');
-        speakFeedback(scanData.message || 'Dustbin validation failed.');
-        setModalState('error');
+        triggerErrorWithAutoRecovery(scanData.message || 'Dustbin scan validation failed.');
         return;
       }
 
@@ -432,24 +571,22 @@ export default function VoiceCollectionModal({
         method: 'PUT',
         body: JSON.stringify({
           scanId: scanData.scanId,
-          action: action,
-          issueDescription: action === 'issue' ? 'Voice reported issue' : '',
-          estimatedWeight: action === 'collected' ? weight : undefined,
+          action: targetAction,
+          issueDescription: targetAction === 'issue' ? 'Voice reported issue' : '',
+          estimatedWeight: targetAction === 'collected' ? targetWeight : undefined,
         }),
       });
 
       const actionData = await actionRes.json();
       if (!actionRes.ok) {
-        setErrorMessage(actionData.message || 'Failed to update collection record.');
-        speakFeedback(actionData.message || 'Failed to save collection.');
-        setModalState('error');
+        triggerErrorWithAutoRecovery(actionData.message || 'Failed to update collection record.');
         return;
       }
 
       // Success & Dual Audio-Haptic Feedback
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 150);
-      speakFeedback(`Bin ${dustbinId} collection recorded successfully!`);
+      speakFeedback(`Bin ${targetBinId} collection recorded successfully!`);
 
       setModalState('success');
 
@@ -458,21 +595,21 @@ export default function VoiceCollectionModal({
         onSuccess();
         if (isHandsFree && isPocketMode) {
           // Reset to listening for next bin automatically without pulling phone out
-          resetAndStartListening();
+          resetAndStartListening(false);
         } else {
           onClose();
         }
       }, 1800);
     } catch (error: any) {
       console.error('Voice Collection Submit Error:', error);
-      setErrorMessage(error.message || 'Network error occurred while submitting.');
-      speakFeedback('Network error occurred.');
-      setModalState('error');
+      triggerErrorWithAutoRecovery(error.message || 'Network error occurred.');
     }
   };
 
   const handleClose = async () => {
     clearCountdown();
+    clearSilenceTimer();
+    clearErrorCountdown();
     Speech.stop();
     await stopSpeechRecognition();
     onClose();
@@ -521,12 +658,24 @@ export default function VoiceCollectionModal({
                 <Text style={styles.pocketStatusText}>Recorded Successfully!</Text>
               </View>
             )}
+
+            {modalState === 'error' && (
+              <View style={[styles.pocketStatusBadge, { backgroundColor: '#991b1b', borderWidth: 1, borderColor: '#ef4444' }]}>
+                <AlertTriangle size={18} color="#fca5a5" />
+                <Text style={styles.pocketStatusText}>
+                  {errorMessage || 'Wrong bin number'} · Resuming in {errorCountdown}s
+                </Text>
+              </View>
+            )}
           </View>
 
-          {/* Double Tap / Button to Exit Pocket Mode */}
+          {/* Button to Exit Pocket Mode */}
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => setIsPocketMode(false)}
+            onPress={() => {
+              clearErrorCountdown();
+              setIsPocketMode(false);
+            }}
             style={styles.pocketExitButton}
           >
             <Eye size={18} color="rgba(255,255,255,0.7)" />
@@ -568,7 +717,7 @@ export default function VoiceCollectionModal({
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               {/* Pocket Mode Toggle */}
               <TouchableOpacity
-                onPress={() => setIsPocketMode(true)}
+                onPress={enterPocketMode}
                 style={[styles.headerIconBtn, { backgroundColor: theme.dark ? '#1e293b' : '#f1f5f9' }]}
                 accessibilityLabel="Enter Pocket Mode"
               >
@@ -685,7 +834,7 @@ export default function VoiceCollectionModal({
 
                 {/* Pocket Mode Button Promo */}
                 <TouchableOpacity
-                  onPress={() => setIsPocketMode(true)}
+                  onPress={enterPocketMode}
                   style={[styles.pocketLaunchBtn, { borderColor: PRIMARY }]}
                 >
                   <EyeOff size={18} color={PRIMARY} />
@@ -858,7 +1007,7 @@ export default function VoiceCollectionModal({
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    onPress={executeSubmission}
+                    onPress={() => executeSubmission()}
                     style={[styles.confirmBtn, { backgroundColor: PRIMARY }]}
                   >
                     <Send size={18} color="white" />
@@ -896,7 +1045,7 @@ export default function VoiceCollectionModal({
               </View>
             )}
 
-            {/* ── STATE: ERROR ───────────────────────────────── */}
+            {/* ── STATE: ERROR (4-Second Auto Dismiss & Recovery) ── */}
             {modalState === 'error' && (
               <View style={styles.stateCenterContainer}>
                 <View style={styles.errorIconCircle}>
@@ -914,6 +1063,14 @@ export default function VoiceCollectionModal({
                   </Text>
                 ) : null}
 
+                {/* Auto-Recovery Countdown Banner */}
+                <View style={styles.errorAutoRecoveryBanner}>
+                  <Clock size={15} color="#ef4444" />
+                  <Text style={styles.errorAutoRecoveryText}>
+                    Auto-resuming in <Text style={{ fontWeight: '800', color: '#b91c1c' }}>{errorCountdown}s</Text>...
+                  </Text>
+                </View>
+
                 <View style={styles.buttonRow}>
                   <TouchableOpacity
                     onPress={handleClose}
@@ -925,11 +1082,14 @@ export default function VoiceCollectionModal({
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    onPress={resetAndStartListening}
+                    onPress={() => {
+                      clearErrorCountdown();
+                      resetAndStartListening(false);
+                    }}
                     style={[styles.retryBtnFilled, { backgroundColor: PRIMARY }]}
                   >
                     <RotateCcw size={16} color="white" />
-                    <Text style={styles.retryBtnFilledText}>Try Again</Text>
+                    <Text style={styles.retryBtnFilledText}>Try Again Now</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1287,8 +1447,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
-    marginBottom: 16,
+    marginBottom: 12,
     paddingHorizontal: 12,
+  },
+  errorAutoRecoveryBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#fee2e2',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginBottom: 16,
+  },
+  errorAutoRecoveryText: {
+    color: '#b91c1c',
+    fontSize: 13,
+    fontWeight: '600',
   },
   cancelBtn: {
     flex: 1,

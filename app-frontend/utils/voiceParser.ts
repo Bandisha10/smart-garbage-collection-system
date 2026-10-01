@@ -221,7 +221,7 @@ export function parseVoiceCollection(
 
   // 5. Normalize common phonetic speech-to-text confusions for "bin" / "dustbin"
   cleanText = cleanText
-    .replace(/\b(?:been|bean|ben|pin|pen|dabba|trash|garbage|container|box|bucket)\b/gi, 'bin')
+    .replace(/\b(?:been|bean|ben|pin|pen|beam|bill|vin|dabba|trash|garbage|container|box|bucket)\b/gi, 'bin')
     .replace(/\b(?:bee|be)\s+(\d+)\b/gi, 'b-$1')
     .replace(/\bb\s+(\d+)\b/gi, 'b-$1');
 
@@ -289,14 +289,16 @@ export function parseVoiceCollection(
     let extractedWeight: number | null = null;
 
     const weightPatterns = [
-      // "3 kg", "3.5 kgs", "3 kilograms", "3 kilos", "3 kilo", "3 kg waste"
+      // "5 kg waste", "3 kg", "3.5 kgs", "3 kilograms", "3 kilos", "3 kilo"
       /(\d+(?:\.\d+)?|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty)\b(?:\s*point\s*\w+)?)\s*(?:kg|kgs|kilo|kilos|kilograms?)\b/i,
+      // "with 5 kg waste", "with 5 kg", "of 3 kg"
+      /(?:with|of|having|about|around)\s*(\d+(?:\.\d+)?|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|fifteen|twenty)\b(?:\s*point\s*\w+)?)\s*(?:kg|kgs|kilo|kilos|kilograms?|waste|garbage)?/i,
       // "weight is 3 kg", "weight 3.5", "volume 3"
       /(?:weight|volume)\s*(?:is|of|:)?\s*(\d+(?:\.\d+)?|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|fifteen|twenty)\b(?:\s*point\s*\w+)?)(?:\s*(?:kg|kgs|kilo|kilograms?))?/i,
       // "3 kg weight", "5 weight"
       /(\d+(?:\.\d+)?)\s*(?:kg|kgs)?\s*weight\b/i,
-      // "with 3", "of 3"
-      /(?:with|of)\s+(\d+(?:\.\d+)?)\s*(?:kg|kgs|kilo)?/i,
+      // Standalone number after "collected" (e.g. "bin 7907 collected 5")
+      /(?:collected|picked|waste)\s*(?:with)?\s*(\d+(?:\.\d+)?)\b/i,
     ];
 
     for (const pattern of weightPatterns) {

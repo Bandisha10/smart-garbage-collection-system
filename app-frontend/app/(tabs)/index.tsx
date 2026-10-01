@@ -1,4 +1,4 @@
-import { MapPin, User, CheckCircle, Clock, Zap, TrendingUp, Mic, Bell } from 'lucide-react-native';
+import { MapPin, User, CheckCircle, Clock, Zap, TrendingUp, Mic } from 'lucide-react-native';
 import React, { useState, useCallback } from 'react';
 import {
   ScrollView, Switch, Text, TextInput, TouchableOpacity, View,
@@ -31,23 +31,10 @@ export default function HomeScreen() {
   const [alertConfig, setAlertConfig] = useState({ title: '', message: '', type: 'success' as 'success' | 'error' });
   const [stats, setStats] = useState({ location: 'Loading...', ward: '', wards: [] as string[], total: 0, completed: 0, pending: 0, onDuty: true });
   const [voiceModalVisible, setVoiceModalVisible] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
 
   // Leave reason dialog
   const [leaveDialogVisible, setLeaveDialogVisible] = useState(false);
   const [leaveReason, setLeaveReason] = useState('');
-
-  const fetchUnreadCount = async () => {
-    try {
-      const res = await request('/notifications/unread-count');
-      const data = await res.json();
-      if (res.ok && typeof data.unreadCount === 'number') {
-        setUnreadCount(data.unreadCount);
-      }
-    } catch {
-      // Fail silently
-    }
-  };
 
   const handleToggleDuty = async (val: boolean) => {
     if (!val) {
@@ -105,8 +92,8 @@ export default function HomeScreen() {
         setEmployeeRole(u.role || 'Garbage Collector');
       }
       const res = await request('/attendance/dashboard');
-      const data = await res.json();
       if (res.ok) {
+        const data = await res.json();
         setStats(data);
         // Default to ON DUTY if no record yet (new day)
         setIsAvailable(data.onDuty ?? true);
@@ -119,7 +106,6 @@ export default function HomeScreen() {
     useCallback(() => {
       fetchStats();
       fetchLocation();
-      fetchUnreadCount();
     }, [])
   );
 
@@ -146,52 +132,12 @@ export default function HomeScreen() {
           backgroundColor: PRIMARY, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36,
           borderBottomLeftRadius: 28, borderBottomRightRadius: 28,
         }}>
-          {/* Location & Notification Bell */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 12 }}>
-              <MapPin size={16} color="rgba(255,255,255,0.8)" />
-              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, marginLeft: 6, flex: 1 }} numberOfLines={1}>
-                {displayLocation}
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={() => router.push('/notifications' as any)}
-              activeOpacity={0.8}
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: 12,
-                backgroundColor: 'rgba(255,255,255,0.2)',
-                justifyContent: 'center',
-                alignItems: 'center',
-                borderWidth: 1,
-                borderColor: 'rgba(255,255,255,0.35)',
-              }}
-            >
-              <Bell size={18} color="white" />
-              {unreadCount > 0 && (
-                <View
-                  style={{
-                    position: 'absolute',
-                    top: -4,
-                    right: -4,
-                    backgroundColor: '#ef4444',
-                    minWidth: 18,
-                    height: 18,
-                    borderRadius: 9,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    paddingHorizontal: 4,
-                    borderWidth: 1.5,
-                    borderColor: PRIMARY,
-                  }}
-                >
-                  <Text style={{ color: 'white', fontSize: 10, fontWeight: '800' }}>
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
+          {/* Location */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+            <MapPin size={16} color="rgba(255,255,255,0.8)" />
+            <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, marginLeft: 6, flex: 1 }} numberOfLines={1}>
+              {displayLocation}
+            </Text>
           </View>
 
           {/* Avatar + Name */}

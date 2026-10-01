@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import {
     Briefcase, HelpCircle, MessageSquare, Phone, Users,
-    ChevronRight, Search, AlertTriangle, LogOut, Moon, Sun, Bell,
+    ChevronRight, Search, AlertTriangle, LogOut, Moon, Sun,
 } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { ScrollView, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -15,7 +15,6 @@ import { useTheme } from '../../context/ThemeContext';
 const RED = '#dc2626';
 
 const MENU = [
-    { id: 1, title: 'Notifications', icon: Bell, route: '/notifications', desc: 'View route alerts & updates', color: '#6B5BFF', bg: '#eef2ff' },
     { id: 2, title: 'Attendance Report', icon: Briefcase, route: '/attendance', desc: 'View monthly attendance', color: '#4f46e5', bg: '#eef2ff' },
     { id: 3, title: 'Raise Query / Issue', icon: HelpCircle, route: '/raise-query', desc: 'Report a problem to supervisor', color: '#0ea5e9', bg: '#f0f9ff' },
     { id: 4, title: 'Feedback', icon: MessageSquare, route: '/feedback', desc: 'Share your work experience', color: '#8b5cf6', bg: '#f5f3ff' },
