@@ -6,7 +6,7 @@ const baseURL =
   process.env.NEXT_PUBLIC_API_URL ||
   (typeof import.meta !== 'undefined' &&
     (import.meta.env?.VITE_API_BASE_URL || import.meta.env?.VITE_API_URL)) ||
-  'http://localhost:8000/api';
+  'https://smartgarbageserver.kamsoft.co.in/api';
 
 const api = axios.create({
   baseURL,

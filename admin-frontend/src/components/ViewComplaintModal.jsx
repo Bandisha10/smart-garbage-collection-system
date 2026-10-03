@@ -152,7 +152,7 @@ export default function ViewComplaintModal({ isOpen, onClose, complaint, onStatu
                         {complaint.photo ? (
                           <div className="w-24 h-24 bg-gray-200 rounded flex items-center justify-center border border-gray-300 overflow-hidden">
                             <img
-                              src={`http://localhost:10000/${complaint.photo}`}
+                              src={complaint.photo.startsWith('http') ? complaint.photo : `${(process.env.NEXT_PUBLIC_API_BASE_URL || 'https://smartgarbageserver.kamsoft.co.in/api').replace(/\/api\/?$/, '')}/${complaint.photo.replace(/^\//, '')}`}
                               alt="Feedback"
                               className="w-full h-full object-cover"
                               onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; e.target.parentElement.innerText = '📷'; }}

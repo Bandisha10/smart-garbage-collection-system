@@ -7,7 +7,7 @@ import api from '../api/axios'
 import { toast } from 'react-toastify'
 
 const CONTENT_TYPE = 'legal'
-const RAW_API = process.env.NEXT_PUBLIC_API_BASE_URL || (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE_URL) || 'http://localhost:8000/api'
+const RAW_API = process.env.NEXT_PUBLIC_API_BASE_URL || (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE_URL) || 'https://smartgarbageserver.kamsoft.co.in/api'
 const BASE_URL = RAW_API.replace(/\/api$/, '')
 
 export default function LegalTransparency() {

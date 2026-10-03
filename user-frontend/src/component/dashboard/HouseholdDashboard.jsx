@@ -348,7 +348,7 @@ const HouseholdDashboard = ({ navigate: propNavigate }) => {
                                         <div className="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0 overflow-hidden">
                                             {c.photo ? (
                                                 <img 
-                                                    src={`http://localhost:10000/${c.photo}`} 
+                                                    src={c.photo?.startsWith('http') ? c.photo : `${(process.env.NEXT_PUBLIC_API_BASE_URL || 'https://smartgarbageserver.kamsoft.co.in/api').replace(/\/api\/?$/, '')}/${c.photo.replace(/^\//, '')}`} 
                                                     alt="Feedback" 
                                                     className="w-full h-full object-cover"
                                                     onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>'; }}

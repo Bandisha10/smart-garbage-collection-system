@@ -1,1 +1,1 @@
-export const API_URL = 'https://smartgarbageserver.kamsoft.co.in/api';
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://smartgarbageserver.kamsoft.co.in/api';

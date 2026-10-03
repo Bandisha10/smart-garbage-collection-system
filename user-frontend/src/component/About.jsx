@@ -54,7 +54,8 @@ const defaultStatIcon = (label) => STAT_ICON_MAP[label] || Award;
 const getImageUrl = (path) => {
     if (!path) return null;
     if (path.startsWith('data:') || path.startsWith('http')) return path;
-    return `http://localhost:10000/${path}`;
+    const base = (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://smartgarbageserver.kamsoft.co.in/api').replace(/\/api\/?$/, '');
+    return `${base}/${path.replace(/^\//, '')}`;
 };
 
 const AboutPage = ({ navigate: propNavigate }) => {

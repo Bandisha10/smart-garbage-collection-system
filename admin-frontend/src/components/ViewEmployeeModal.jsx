@@ -3,7 +3,7 @@
 import { useEffect } from "react"
 import { X, Download, Image as ImageIcon, Edit, UserX, CheckCircle } from "lucide-react"
 
-const RAW_API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE_URL) || "http://localhost:8000/api"
+const RAW_API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE_URL) || "https://smartgarbageserver.kamsoft.co.in/api"
 const STATIC_BASE = RAW_API_BASE.replace(/\/api$/, "")
 const isImage = (path = "") => /\.(jpg|jpeg|png|webp)$/i.test(path)
 

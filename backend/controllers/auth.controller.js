@@ -188,10 +188,10 @@ export const verifyOtpAndLogin = async (req, res) => {
   });
 
   // 5️⃣ Set cookie
-  const isProd = process.env.NODE_ENV === "production" || process.env.RENDER === "true" || process.env.RENDER_SERVICE_ID;
+  const isProd = process.env.NODE_ENV === "production" || process.env.RENDER === "true" || process.env.RENDER_SERVICE_ID || Boolean(process.env.BACKEND_URL && process.env.BACKEND_URL.startsWith("https"));
   res.cookie("token", token, {
     httpOnly: true,
-    secure: isProd, // Secure only in production/render
+    secure: isProd, // Secure only in production/render/HTTPS
     sameSite: isProd ? "none" : "lax", // none for cross-site prod, lax for localhost
     maxAge: 24 * 60 * 60 * 1000, // 1 day
   });
@@ -214,7 +214,7 @@ export const verifyOtpAndLogin = async (req, res) => {
  * Logout
  */
 export const logout = (req, res) => {
-  const isProd = process.env.NODE_ENV === "production" || process.env.RENDER === "true" || process.env.RENDER_SERVICE_ID;
+  const isProd = process.env.NODE_ENV === "production" || process.env.RENDER === "true" || process.env.RENDER_SERVICE_ID || Boolean(process.env.BACKEND_URL && process.env.BACKEND_URL.startsWith("https"));
   return res
     .clearCookie("token", {
       httpOnly: true,

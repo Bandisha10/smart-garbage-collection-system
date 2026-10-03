@@ -10,7 +10,8 @@ import api from '../api/axios'
 const getImageUrl = (path) => {
   if (!path) return null;
   if (path.startsWith("data:") || path.startsWith("http")) return path;
-  return `http://localhost:10000/${path}`;
+  const base = (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://smartgarbageserver.kamsoft.co.in/api').replace(/\/api\/?$/, '');
+  return `${base}/${path.replace(/^\//, '')}`;
 };
 
 /* ── Default guide cards matching user-frontend GuidesResourcesPage ── */
@@ -245,7 +246,7 @@ export default function EditSegregationGuide() {
                 <div className="text-5xl mb-3">📄</div>
                 <p className="text-sm font-semibold text-gray-800 mb-4">{pdfFile.name}</p>
                 <div className="flex gap-2 justify-center">
-                  <a href={`http://localhost:10000/${pdfFile.url}`} target="_blank" rel="noreferrer"
+                  <a href={pdfFile.url.startsWith("http") ? pdfFile.url : `${(process.env.NEXT_PUBLIC_API_BASE_URL || 'https://smartgarbageserver.kamsoft.co.in/api').replace(/\/api\/?$/, '')}/${pdfFile.url.replace(/^\//, '')}`} target="_blank" rel="noreferrer"
                     className="px-4 py-2 bg-yellow-500 text-white rounded font-semibold text-sm hover:bg-yellow-600 transition">
                     View
                   </a>

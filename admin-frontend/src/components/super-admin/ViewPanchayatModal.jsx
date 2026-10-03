@@ -38,7 +38,7 @@ export default function ViewPanchayatModal({ isOpen, onClose, data, onApprove, o
   const baseURL =
     process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/api\/?$/, "") ||
     (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) ||
-    "http://localhost:8000";
+    "https://smartgarbageserver.kamsoft.co.in";
   const isPending = data.status === "pending";
 
   return (

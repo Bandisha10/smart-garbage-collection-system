@@ -58,7 +58,8 @@ export const createUser = async (req, res) => {
 
     let profilePhoto = ''
     if (req.file) {
-      profilePhoto = `http://localhost:10000/uploads/${req.file.filename}`
+      const serverBase = process.env.BACKEND_URL || 'https://smartgarbageserver.kamsoft.co.in'
+      profilePhoto = `${serverBase.replace(/\/$/, '')}/uploads/${req.file.filename}`
     }
 
     const newUser = new User({
@@ -109,7 +110,8 @@ export const updateUser = async (req, res) => {
 
     let updateData = { name, mobile, email, role, permissions, isActive }
     if (req.file) {
-      updateData.profilePhoto = `http://localhost:10000/uploads/${req.file.filename}`
+      const serverBase = process.env.BACKEND_URL || 'https://smartgarbageserver.kamsoft.co.in'
+      updateData.profilePhoto = `${serverBase.replace(/\/$/, '')}/uploads/${req.file.filename}`
     }
 
     const updatedUser = await User.findByIdAndUpdate(id, updateData, { new: true })

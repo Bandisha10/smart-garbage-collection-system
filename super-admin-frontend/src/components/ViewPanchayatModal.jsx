@@ -35,7 +35,10 @@ function DocCard({ title, file, baseURL }) {
 
 export default function ViewPanchayatModal({ isOpen, onClose, data, onApprove, onReject }) {
   if (!isOpen || !data) return null;
-  const baseURL = import.meta.env.VITE_API_URL || "http://localhost:10000";
+  const baseURL =
+    process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/api\/?$/, "") ||
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) ||
+    "https://smartgarbageserver.kamsoft.co.in";
   const isPending = data.status === "pending";
 
   return (

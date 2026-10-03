@@ -39,9 +39,10 @@ const LegalTransparencyPage = ({ navigate: propNavigate }) => {
             .then(res => {
                 const data = res.data?.legalDocs;
                 if (data && data.length > 0) {
+                    const base = (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://smartgarbageserver.kamsoft.co.in/api').replace(/\/api\/?$/, '');
                     setDocs(data.map(d => ({
                         ...d,
-                        url: d.url.startsWith('http') ? d.url : `http://localhost:10000/${d.url}`
+                        url: d.url.startsWith('http') ? d.url : `${base}/${d.url.replace(/^\//, '')}`
                     })));
                 } else {
                     setDocs(defaultDocs);

@@ -24,7 +24,8 @@ const DEFAULT_GUIDES = [
 const getUrl = (path) => {
     if (!path) return null;
     if (path.startsWith('http')) return path;
-    return `http://localhost:10000/${path}`;
+    const base = (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://smartgarbageserver.kamsoft.co.in/api').replace(/\/api\/?$/, '');
+    return `${base}/${path.replace(/^\//, '')}`;
 };
 
 const typeIcon = (type) => {

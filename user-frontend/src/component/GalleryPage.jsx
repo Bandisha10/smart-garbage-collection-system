@@ -41,9 +41,10 @@ const GalleryPage = ({ navigate: propNavigate }) => {
             .then(res => {
                 const data = res.data?.photos;
                 if (data && data.length > 0) {
+                    const base = (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://smartgarbageserver.kamsoft.co.in/api').replace(/\/api\/?$/, '');
                     setPhotos(data.map(p => ({
                         ...p,
-                        url: p.url.startsWith('http') ? p.url : `http://localhost:10000/${p.url}`
+                        url: p.url.startsWith('http') ? p.url : `${base}/${p.url.replace(/^\//, '')}`
                     })));
                 } else {
                     setPhotos(defaultPhotos);
